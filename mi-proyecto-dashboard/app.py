@@ -50,8 +50,8 @@ st.markdown("""
 # 2. MOTOR DE CARGA DE DATOS (Optimizado para cabeceras reales de VENTA_AGENCIAS.xlsx)
 @st.cache_data(ttl=120)
 def cargar_y_procesar_datos():
-    carpeta_data = "DATA"
-    # Ajustado con guion bajo para que coincida exactamente con tu archivo en GitHub
+    # Le indicamos que busque DATA dentro de la carpeta del proyecto
+    carpeta_data = os.path.join("mi-proyecto-dashboard", "DATA")
     archivo_objetivo = os.path.join(carpeta_data, "VENTA_AGENCIAS.xlsx")
     
     if not os.path.exists(archivo_objetivo):
