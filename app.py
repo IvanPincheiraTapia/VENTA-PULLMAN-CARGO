@@ -5,12 +5,12 @@ import plotly.graph_objects as go
 import glob
 import os
 
-# 1. CONFIGURACIÓN DE LA PÁGINA
+# 1. CONFIGURACIÓN DE LA PÁGINA (Inicia con la barra lateral cerrada por defecto)
 st.set_page_config(
     page_title="KPI Control de Carga - Pullman Cargo",
     page_icon="🚚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- INYECCIÓN DE CSS AVANZADO PARA MARCA PULLMAN CARGO ---
@@ -47,7 +47,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. MOTOR DE CARGA DE DATOS (Soporta dinámicamente ambas rutas por si renombraste la carpeta)
+# 2. MOTOR DE CARGA DE DATOS (Soporta dinámicamente ambas rutas de carpetas)
 @st.cache_data(ttl=120)
 def cargar_y_procesar_datos():
     carpeta_posible_1 = os.path.join("mi-proyecto-panel-de-control", "DATA")
@@ -85,7 +85,7 @@ data_bundle = cargar_y_procesar_datos()
 if data_bundle is not None:
     df_raw, nombre_archivo = data_bundle
     
-    # --- MENÚ LATERAL: LOGO CORPORATIVO ---
+    # --- MENÚ LATERAL: LOGO CORPORATIVO (Se despliega al abrir la barra) ---
     with st.sidebar:
         st.markdown('<div class="logo-container">', unsafe_allow_html=True)
         if os.path.exists("logo_pullmacargo_fondo_blanco.png"):
@@ -107,7 +107,7 @@ if data_bundle is not None:
     st.markdown("<p style='color:#64748b; font-size:1.1rem; margin-top:-10px;'>Sistemas de Carga Integrados — Pullman Cargo S.A.</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- SECCIÓN 1: FILTROS DE NAVEGACIÓN (AMPLIADO A 6 COLUMNAS) ---
+    # --- SECCIÓN 1: FILTROS DE NAVEGACIÓN (CON FILTRO DE FORMA DE PAGO) ---
     st.markdown('<div class="filter-container">', unsafe_allow_html=True)
     st.markdown("#### 🔍 Filtros de Segmentación Operativa Global")
     
@@ -264,7 +264,7 @@ if data_bundle is not None:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # =========================================================================
-    # --- SECCIÓN 4: REEMPLAZADA POR TOP 10 MAYOR VENTA Y TOP 10 MENOR VENTA ---
+    # --- SECCIÓN 4: RANKING DE VENTAS (LÍDERES Y CRÍTICOS) ---
     # =========================================================================
     st.markdown("---")
     st.markdown("## 🔄 Rendimiento Comercial: Ranking de Ventas por Agencia")
