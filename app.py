@@ -47,21 +47,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. MOTOR DE CARGA DE DATOS (Ruta corregida para subcarpeta en GitHub)
+# 2. MOTOR DE CARGA DE DATOS (Soporta dinámicamente ambas rutas por si renombraste la carpeta)
 @st.cache_data(ttl=120)
 def cargar_y_procesar_datos():
-    # Apunta correctamente a 'mi-proyecto-dashboard/DATA'
-    carpeta_data = os.path.join("mi-proyecto-dashboard", "DATA")
-    archivo_objetivo = os.path.join(carpeta_data, "VENTA_AGENCIAS.xlsx")
+    carpeta_posible_1 = os.path.join("mi-proyecto-panel-de-control", "DATA")
+    carpeta_posible_2 = os.path.join("mi-proyecto-dashboard", "DATA")
     
-    # Fallback de seguridad si corre localmente sin la estructura de subcarpetas profunda
+    if os.path.exists(carpeta_posible_1):
+        archivo_objetivo = os.path.join(carpeta_posible_1, "VENTA_AGENCIAS.xlsx")
+    elif os.path.exists(carpeta_posible_2):
+        archivo_objetivo = os.path.join(carpeta_posible_2, "VENTA_AGENCIAS.xlsx")
+    else:
+        archivo_objetivo = os.path.join("DATA", "VENTA_AGENCIAS.xlsx")
+        
+    if not os.path.exists(archivo_objetivo) and os.path.exists("VENTA_AGENCIAS.xlsx"):
+        archivo_objetivo = "VENTA_AGENCIAS.xlsx"
+        
     if not os.path.exists(archivo_objetivo):
-        if os.path.exists(os.path.join("DATA", "VENTA_AGENCIAS.xlsx")):
-            archivo_objetivo = os.path.join("DATA", "VENTA_AGENCIAS.xlsx")
-        elif os.path.exists("VENTA_AGENCIAS.xlsx"):
-            archivo_objetivo = "VENTA_AGENCIAS.xlsx"
-        else:
-            return None
+        return None
     
     df = pd.read_excel(archivo_objetivo)
     df.columns = df.columns.str.strip()
@@ -72,7 +75,6 @@ def cargar_y_procesar_datos():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             
-    # Limpieza de la columna S (Fecha Emisión)
     if 'Fecha Emisión' in df.columns:
         df['Fecha Emisión'] = pd.to_datetime(df['Fecha Emisión'], errors='coerce').dt.date
         
@@ -88,6 +90,8 @@ if data_bundle is not None:
         st.markdown('<div class="logo-container">', unsafe_allow_html=True)
         if os.path.exists("logo_pullmacargo_fondo_blanco.png"):
             st.image("logo_pullmacargo_fondo_blanco.png", use_container_width=True)
+        elif os.path.exists(os.path.join("mi-proyecto-panel-de-control", "logo_pullmacargo_fondo_blanco.png")):
+            st.image(os.path.join("mi-proyecto-panel-de-control", "logo_pullmacargo_fondo_blanco.png"), use_container_width=True)
         elif os.path.exists(os.path.join("mi-proyecto-dashboard", "logo_pullmacargo_fondo_blanco.png")):
             st.image(os.path.join("mi-proyecto-dashboard", "logo_pullmacargo_fondo_blanco.png"), use_container_width=True)
         else:
@@ -103,11 +107,11 @@ if data_bundle is not None:
     st.markdown("<p style='color:#64748b; font-size:1.1rem; margin-top:-10px;'>Sistemas de Carga Integrados — Pullman Cargo S.A.</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- SECCIÓN 1: FILTROS DE NAVEGACIÓN ---
+    # --- SECCIÓN 1: FILTROS DE NAVEGACIÓN (AMPLIADO A 6 COLUMNAS) ---
     st.markdown('<div class="filter-container">', unsafe_allow_html=True)
     st.markdown("#### 🔍 Filtros de Segmentación Operativa Global")
     
-    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+    col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
     col_mes_nombre = 'MES' if 'MES' in df_raw.columns else ('Mes' if 'Mes' in df_raw.columns else None)
     
     with col_f1:
@@ -135,12 +139,18 @@ if data_bundle is not None:
         agency_sel = st.multiselect("4. Agencia(s):", agencias_disp, default=agencias_disp)
 
     with col_f5:
-        flujos_disp = sorted(df_raw['Tipo ODT'].dropna().unique()) if 'Tipo ODT' in df_raw.columns else ['EMITIDAS', 'RECIBIDAS', 'DESCUENTOS']
+        df_f4 = df_f3[df_f3['Agencia Descripción'].isin(agency_sel)] if agency_sel else df_f3
+        flujos_disp = sorted(df_f4['Tipo ODT'].dropna().unique()) if 'Tipo ODT' in df_f4.columns else []
         flujo_sel = st.multiselect("5. Flujo:", flujos_disp, default=flujos_disp)
+
+    with col_f6:
+        df_f5 = df_f4[df_f4['Tipo ODT'].isin(flujo_sel)] if flujo_sel else df_f4
+        pagos_disp = sorted(df_f5['Forma Pago'].dropna().unique()) if 'Forma Pago' in df_f5.columns else []
+        pago_sel = st.multiselect("6. Forma Pago:", pagos_disp, default=pagos_disp)
     
-    # FILTRO DEFINITIVO
-    df_f4 = df_f3[df_f3['Agencia Descripción'].isin(agency_sel)]
-    df = df_f4[df_f4['Tipo ODT'].isin(flujo_sel)]
+    # APLICACIÓN DEL FILTRO MAESTRO DEFINITIVO
+    df_filtrado_prev = df_f5[df_f5['Forma Pago'].isin(pago_sel)] if pagos_disp else df_f5
+    df = df_filtrado_prev.copy()
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --- INDICADORES GENERALES DEL PERÍODO ---
@@ -237,7 +247,6 @@ if data_bundle is not None:
             Venta_Total=('Valor Total', 'sum'), Kilos_Totales=('Peso', 'sum')
         ).reset_index()
         
-        # Filtro de seguridad: Quita registros en 0 o negativos para que Plotly Express no falle
         df_mapa = df_mapa[df_mapa['Venta_Total'] > 0]
         
         if not df_mapa.empty:
@@ -255,10 +264,10 @@ if data_bundle is not None:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # =========================================================================
-    # --- SECCIÓN 4: BALANCE OPERATIVO POR AGENCIA ---
+    # --- SECCIÓN 4: REEMPLAZADA POR TOP 10 MAYOR VENTA Y TOP 10 MENOR VENTA ---
     # =========================================================================
     st.markdown("---")
-    st.markdown("## 🔄 Balance Operativo: Emisión vs Recepción por Agencia")
+    st.markdown("## 🔄 Rendimiento Comercial: Ranking de Ventas por Agencia")
     
     col_bal1, col_bal2 = st.columns(2)
     with col_bal1:
@@ -266,20 +275,43 @@ if data_bundle is not None:
     with col_bal2:
         st.markdown(f'<div class="kpi-card" style="border-left-color: #10b981; background-color: #f0fdf4;"><div class="kpi-title" style="color: #166534;">Total Operaciones Recibidas (Destino)</div><div class="kpi-value" style="color: #14532d;">${venta_recibida_tot:,.0f}</div></div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="chart-block">', unsafe_allow_html=True)
     if len(df) > 0:
-        df_ag_bal = df.groupby(['Agencia Descripción', 'Tipo ODT'])['Valor Total'].sum().reset_index()
-        top_agencias = df.groupby('Agencia Descripción')['Valor Total'].sum().sort_values(ascending=False).head(10).index
-        df_ag_bal_top = df_ag_bal[df_ag_bal['Agencia Descripción'].isin(top_agencias)]
-
-        fig_bal_top = px.bar(
-            df_ag_bal_top, x="Valor Total", y="Agencia Descripción", color="Tipo ODT",
-            orientation="h", barmode="group", title="<b>Top 10 Agencias Líderes en Movimiento Comercial</b>",
-            color_discrete_map={"EMITIDAS": "#2563eb", "RECIBIDAS": "#10b981", "DESCUENTOS": "#ef4444"}, template="plotly_white"
-        )
-        fig_bal_top.update_layout(yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(fig_bal_top, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Generar base del ranking por agencia
+        df_ranking_base = df.groupby('Agencia Descripción')['Valor Total'].sum().reset_index()
+        # Filtrar agencias que posean algún movimiento financiero real mayor a 0
+        df_ranking_base = df_ranking_base[df_ranking_base['Valor Total'] > 0]
+        
+        col_top_alta, col_top_baja = st.columns(2)
+        
+        with col_top_alta:
+            st.markdown('<div class="chart-block">', unsafe_allow_html=True)
+            # Top 10 Agencias con Mayor Venta
+            df_top_mayor = df_ranking_base.sort_values(by='Valor Total', ascending=False).head(10)
+            
+            fig_mayor = px.bar(
+                df_top_mayor, x="Valor Total", y="Agencia Descripción",
+                orientation="h", title="<b>🔥 Top 10 Agencias con Mayor Venta (Líderes)</b>",
+                color="Valor Total", color_continuous_scale="Blues", template="plotly_white"
+            )
+            fig_mayor.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, coloraxis_showscale=False)
+            st.plotly_chart(fig_mayor, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with col_top_baja:
+            st.markdown('<div class="chart-block">', unsafe_allow_html=True)
+            # Top 10 Agencias con Menor Venta
+            df_top_menor = df_ranking_base.sort_values(by='Valor Total', ascending=True).head(10)
+            
+            fig_menor = px.bar(
+                df_top_menor, x="Valor Total", y="Agencia Descripción",
+                orientation="h", title="<b>⚠️ Top 10 Agencias con Menor Venta (Críticas)</b>",
+                color="Valor Total", color_continuous_scale="Reds_r", template="plotly_white"
+            )
+            fig_menor.update_layout(yaxis={'categoryorder':'total descending'}, showlegend=False, coloraxis_showscale=False)
+            st.plotly_chart(fig_menor, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("ℹ️ No hay registros suficientes para armar los rankings comerciales.")
 
     # --- SECCIÓN 5: TABLA DE AUDITORÍA BASE DE DATOS ---
     st.markdown("---")
